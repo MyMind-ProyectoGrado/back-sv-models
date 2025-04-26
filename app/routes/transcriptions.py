@@ -2,12 +2,10 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from app.core.database import users_collection
 from app.core.auth import get_current_user
 from app.schemas.transcription_schema import Transcription, TranscriptionInput
-from app.models.emotion_model import predict_emotion
-from app.models.sentiment_model import predict_sentiment
-from app.models.transcribe_model import transcribe_audio_from_file
+from app.tasks.transcription_tasks import process_audio_transcription, process_text_transcription
 from datetime import datetime, date, time
 from fastapi import APIRouter, UploadFile, File
-
+import base64
 from typing import Optional
 from bson import ObjectId
 
@@ -25,89 +23,36 @@ async def add_transcription_audio(
 
     # Leer el contenido del archivo
     file_bytes = await audio.read()
+    file_bytes_b64 = base64.b64encode(file_bytes).decode('utf-8')
 
-    # Llamar al modelo de transcripción
-    try:
-        text = transcribe_audio_from_file(file_bytes, suffix=f".{audio.filename.split('.')[-1]}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
-
-    # Predecir emoción y sentimiento usando el texto
-    emotion_data = predict_emotion(text)
-    emotion = emotion_data["predicted_emotion"]
-    emotion_probs = emotion_data["probabilities"]
-
-    sentiment, sentiment_probs = predict_sentiment(text)
-
-    # Construir la transcripción con fecha y hora actuales
-    transcription_data = {
-        "_id": str(ObjectId()),
-        "date": datetime.now().date().isoformat(),
-        "time": datetime.now().time().isoformat(timespec="seconds"),
-        "text": text,
-        "emotion": emotion,
-        "emotionProbabilities": emotion_probs,
-        "sentiment": sentiment,
-        "sentimentProbabilities": sentiment_probs,
-        "topic": None
-    }
-
-    # Insertar en la colección del usuario
-    result = await users_collection.update_one(
-        {"_id": user_id},
-        {"$push": {"transcriptions": transcription_data}}
+    # Llamar a la tarea de Celery para procesar la transcripción
+    result = process_audio_transcription.apply_async(
+        (user_id, file_bytes_b64, f".{audio.filename.split('.')[-1]}"),
+        queue="transcriptions"
     )
 
-    if result.modified_count == 0:
-        raise HTTPException(status_code=500, detail="Failed to add transcription")
-
     return {
-        "message": "Transcription added successfully",
-        "transcription_id": transcription_data["_id"]
+        "message": "Transcription enqueued successfully",
+        "task_id": result.id
     }
 
 @router.post("/add-transcription/text")
-async def add_transcription_auto(
+async def add_transcription_text(
     input: TranscriptionInput,
     user_id: str = Depends(get_current_user)
 ):
-    # Extraer el texto desde el cuerpo
-    text = input.text
-
     # Verificar si el usuario existe
     user = await users_collection.find_one({"_id": user_id})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Predecir emoción y sentimiento
-    emotion_data = predict_emotion(text)
-    emotion = emotion_data["predicted_emotion"]
-    emotion_probs = emotion_data["probabilities"]
-    
-    sentiment, sentiment_probs = predict_sentiment(text)
-
-    # Armar el objeto de transcripción
-    transcription_data = {
-        "_id": str(ObjectId()),
-        "date": datetime.now().date().isoformat(),
-        "time": datetime.now().time().isoformat(timespec="seconds"),
-        "text": text,
-        "emotion": emotion,
-        "emotionProbabilities": emotion_probs,
-        "sentiment": sentiment,
-        "sentimentProbabilities": sentiment_probs,
-        "topic": None  
-    }
-
-    # Guardar la transcripción
-    result = await users_collection.update_one(
-        {"_id": user_id},
-        {"$push": {"transcriptions": transcription_data}}
+    # Encolar tarea de Celery
+    result = process_text_transcription.apply_async(
+        (user_id, input.text),
+        queue="transcriptions"
     )
-    if result.modified_count == 0:
-        raise HTTPException(status_code=500, detail="Failed to add transcription")
 
     return {
-        "message": "Transcription added successfully",
-        "transcription_id": transcription_data["_id"]
+        "message": "Transcription enqueued successfully",
+        "task_id": result.id
     }

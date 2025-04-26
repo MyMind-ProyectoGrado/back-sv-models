@@ -1,0 +1,11 @@
+pymongo[srv]
+python-dotenv
+motor
+transformers
+pysentimiento
+nemo_toolkit[asr] 
+torchaudio 
+pydub
+python-multipart
+numpy==1.26.4
+celery[redis]

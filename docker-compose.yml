@@ -1,7 +1,9 @@
 services:
   backend:
     container_name: back-sv-models 
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile.backend
     ports:
       - "8001:8001"
     env_file:
@@ -10,6 +12,21 @@ services:
     networks:
       - shared-net  # <- Conectado a red compartida
 
+  celery_worker:
+    container_name: celery_worker
+    build: 
+      context: .
+      dockerfile: Dockerfile.worker
+    command: ["celery", "-A", "app.tasks.celery_worker", "worker", "--loglevel=info", "-Q", "transcriptions", "--concurrency=1", "-P", "solo"]
+    depends_on:
+      - redis
+    networks:
+      - shared-net
+
+  redis:
+    image: "redis:latest"
+    networks:
+      - shared-net
 
 networks:
   shared-net:

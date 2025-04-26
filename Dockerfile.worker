@@ -1,0 +1,20 @@
+# Dockerfile.worker
+FROM python:3.10
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=America/Bogota 
+
+WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    sox ffmpeg libsndfile1 tzdata && \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY requirements/worker.txt .
+RUN pip install --no-cache-dir -r worker.txt
+
+COPY . .
+
+CMD ["celery", "-A", "app.tasks.celery_worker", "worker", "--loglevel=info", "-Q", "transcriptions", "--concurrency=1", "-P", "solo"]
