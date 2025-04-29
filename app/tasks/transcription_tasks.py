@@ -6,6 +6,8 @@ from app.models.sentiment_model import predict_sentiment
 from app.core.database import users_collection
 from datetime import datetime
 from bson import ObjectId
+from pydub import AudioSegment
+import io
 import base64
 
 @celery_app.task
@@ -15,7 +17,21 @@ def process_audio_transcription(user_id: str, file_bytes_b64: str, extension: st
     file_bytes = base64.b64decode(file_bytes_b64)
     print("✅ Archivo de audio decodificado")
 
-    text = transcribe_audio_from_file(file_bytes, suffix=extension)
+    clean_extension = extension.lower().lstrip(".")
+
+    if clean_extension != "wav":
+        # 🔄 Convertir a WAV solo si no está ya en WAV
+        audio = AudioSegment.from_file(io.BytesIO(file_bytes), format=clean_extension)
+        wav_buffer = io.BytesIO()
+        audio.export(wav_buffer, format="wav")
+        wav_buffer.seek(0)
+        print("🔊 Audio convertido a formato WAV")
+        audio_bytes = wav_buffer.read()
+    else:
+        print("🎧 Archivo ya está en formato WAV, se omite la conversión")
+        audio_bytes = file_bytes
+    
+    text = transcribe_audio_from_file(audio_bytes, suffix="wav")
     print(f"📝 Texto transcrito: {text[:50]}...")  # Mostrar solo los primeros 50 caracteres
 
     emotion_data = predict_emotion(text)

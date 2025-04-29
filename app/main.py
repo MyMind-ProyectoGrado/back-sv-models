@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException, Depends
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 from dotenv import load_dotenv
+import socket
 
 # Cargar variables de entorno
 load_dotenv()
@@ -11,7 +12,7 @@ async def verify_request_from_apisix(request: Request):
     entorno = os.getenv("ENVIRONMENT")
 
     if entorno == "production":
-        expected_url = os.getenv("APISIX_PROD")  # (Tendrás que definirlo para producción también)
+        expected_url = os.getenv("APISIX_PROD")
         client_ip = request.client.host
         print(f"Client IP (Production): {client_ip}, Expected URL: {expected_url}")
 
