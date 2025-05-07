@@ -3,7 +3,7 @@ import torch
 from pathlib import Path
 
 # Cargar el modelo
-MODEL_ID = "RhaxCity/myMind-RoBERTuito-Finetuned-Emotion"
+MODEL_ID = "RhaxCity/myMind-robertuito-emotions-finetuned-spanish"
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
 model = AutoModelForSequenceClassification.from_pretrained(MODEL_ID)
