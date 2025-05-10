@@ -9,3 +9,4 @@ pydub
 python-multipart
 numpy==1.26.4
 celery[redis]
+asyncio

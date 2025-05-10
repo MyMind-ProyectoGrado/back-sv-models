@@ -8,6 +8,8 @@ services:
       - "8001:8001"
     env_file:
       - .env
+    depends_on:
+      - redis
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
     networks:
       - shared-net  # <- Conectado a red compartida
@@ -25,6 +27,8 @@ services:
 
   redis:
     image: "redis:latest"
+    ports:
+      - "6379:6379"
     networks:
       - shared-net
 
